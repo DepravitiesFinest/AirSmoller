@@ -1,0 +1,46 @@
+name: Build iOS App
+
+on:
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+    
+    - name: Install dependencies and tools
+      run: |
+        brew install ldid
+        
+    - name: Build IPA
+      run: |
+        # Create directory for artifacts
+        mkdir -p build/Payload
+        
+        # Build the app
+        xcodebuild clean archive -project AirTroller.xcodeproj -scheme AirTroller -configuration Release -archivePath build/AirTroller.xcarchive CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+        
+        # Copy the app bundle to Payload directory
+        cp -r build/AirTroller.xcarchive/Products/Applications/AirTroller.app build/Payload/
+        
+        # Create the IPA file
+        cd build && zip -r AirTroller.ipa Payload
+    
+    - name: Fake Sign IPA with ldid
+      run: |
+        cd build && ldid -S ../entitlements.plist Payload/AirTroller.app/AirTroller
+        cd build && zip -r AirTroller-signed.ipa Payload
+    
+    - name: Upload IPA
+      uses: actions/upload-artifact@v3
+      with:
+        name: AirTroller
+        path: build/AirTroller-signed.ipa
